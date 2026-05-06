@@ -17,23 +17,10 @@ __pycache__/
 # Editors
 .vscode/
 .idea/
+*.swp
+*.swo
 
 # Dependencies
 .venv/
 venv/
-node_modules/
-
-# Build artifacts
-dist/
-build/
-target/
-
-# Coverage
-.coverage
-coverage/
-htmlcov/
-
-# Cache
-.mypy_cache/
-.pytest_cache/
 ```

@@ -32,18 +32,6 @@ class Game:
             print(f"Ошибка parsing JSON: {e}")
             sys.exit(1)
     
-    def load_scenario(self) -> dict:
-        """Load scenario data from JSON file"""
-        try:
-            with open('scenario.json', 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except FileNotFoundError:
-            print("Ошибка: файл scenario.json не найден!")
-            sys.exit(1)
-        except json.JSONDecodeError as e:
-            print(f"Ошибка parsing JSON: {e}")
-            sys.exit(1)
-    
     def get_input(self) -> str:
         """
         Get player input (number for action selection).
@@ -116,15 +104,16 @@ class Game:
             return
         
         if user_input == 'DOWN':
-            if self.selected_option < len(actions) - 1:
+            max_option = len(actions) - 1 if actions else 0
+            if self.selected_option < max_option:
                 self.selected_option += 1
             return
         
-        # Handle number keys
+        # Handle number keys (1-5, but only up to available actions)
         if user_input in '12345':
             option_index = int(user_input) - 1
             
-            # Validate option index
+            # Validate option index against actual available actions
             if 0 <= option_index < len(actions):
                 self.selected_option = option_index
                 self.execute_action(actions[option_index])
@@ -188,50 +177,56 @@ class Game:
         # Get art placeholder based on art_id
         art_lines = self.get_art_for_id(art_id)
         
-        # Split text into lines for description
-        description_lines = text.split('\n')
+        # Get description from assets.py if available, otherwise use scenario text
+        from assets import get_description
+        
+        # Map scenario art_ids to asset names for descriptions too
+        desc_mapping = {
+            "main_menu_art": "main_menu",
+            "start_room": "room",
+            "forest_scene": "forest",
+        }
+        desc_name = desc_mapping.get(art_id, art_id)
+        
+        description_from_assets = get_description(desc_name)
+        # Use assets description if available and not default, otherwise split scenario text
+        if description_from_assets and description_from_assets != get_description("default"):
+            description_lines = description_from_assets
+        else:
+            description_lines = text.split('\n')
         
         # Render the frame
         draw_frame(art_lines, description_lines, menu_options, self.selected_option)
     
     def get_art_for_id(self, art_id: str) -> list:
-        """Get ASCII art lines based on art_id (placeholder implementation)"""
-        # Simple placeholder arts for demonstration
-        arts = {
-            "main_menu_art": [
-                "  ____  _          _ _             ",
-                " |  _ \\(_) ___ ___| (_) ___ _ __   ",
-                " | | | | |/ __/ _ \\ | |/ _ \\ '__|  ",
-                " | |_| | | (_|  __/ | |  __/ |     ",
-                " |____/|_|\\___\\___|_|_|\\___|_|     ",
-                "",
-                "       === QUESTTEST ===           ",
-            ],
-            "start_room": [
-                "  +---------------------+          ",
-                "  |                     |          ",
-                "  |      [ROOM]         |          ",
-                "  |         |           |          ",
-                "  |      [MAP]          |          ",
-                "  |                     |          ",
-                "  +----------+----------+          ",
-            ],
-            "forest_scene": [
-                "    /\\    /\\                         ",
-                "   //\\\\  //\\\\                        ",
-                "  ///\\\\///\\\\\\                       ",
-                "    ||  ||                          ",
-                "   _||__||_                         ",
-                "  |        |                        ",
-                "  | TUNNEL |                        ",
-            ],
-            "default": [
-                "  ???                              ",
-                "  Unknown location art             ",
-                "  ???                              ",
-            ]
+        """Get ASCII art lines based on art_id from assets.py"""
+        from assets import get_art
+        
+        # Map scenario art_ids to asset names
+        art_mapping = {
+            "main_menu_art": "main_menu",
+            "start_room": "room",
+            "forest_scene": "forest",
         }
-        return arts.get(art_id, arts["default"])
+        
+        # Try to map the art_id, or use it directly
+        asset_name = art_mapping.get(art_id, art_id)
+        
+        # Get art string from assets
+        art_string = get_art(asset_name)
+        
+        # Split into lines and clean
+        lines = [line.rstrip() for line in art_string.split('\n')]
+        
+        return lines if lines else self._get_default_art()
+    
+    def _get_default_art(self) -> list:
+        """Default art placeholder"""
+        return [
+            "  ???                              ",
+            "  Unknown location art             ",
+            "  ???                              ",
+        ]
     
     def run(self):
         """Main game loop"""
