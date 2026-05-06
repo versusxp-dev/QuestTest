@@ -1,0 +1,25 @@
+{
+  "main_menu": {
+    "art_id": "main_menu_art",
+    "text": "ДОБРО ПОЖАЛОВАТЬ В QUESTTEST!\nВерсия движка 1.0. Готовы начать?",
+    "actions": [
+      {"text": "Начать новую игру", "target": "room_start"},
+      {"text": "Выйти", "target": "exit"}
+    ]
+  },
+  "room_start": {
+    "art_id": "start_room",
+    "text": "Ты стоишь в центре пустой комнаты. На стене висит старая карта. Единственный выход ведет в темный коридор.",
+    "actions": [
+      {"text": "Идти в коридор", "target": "corridor"},
+      {"text": "Вернуться в меню", "target": "main_menu"}
+    ]
+  },
+  "corridor": {
+    "art_id": "forest_scene",
+    "text": "Длинный коридор, пахнет сыростью. Впереди тупик, но на полу что-то блестит.",
+    "actions": [
+      {"text": "Вернуться назад", "target": "room_start"}
+    ]
+  }
+}

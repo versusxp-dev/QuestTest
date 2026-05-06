@@ -1,27 +1,39 @@
 #!/usr/bin/env python3
 """
 main.py - Main game loop and state machine for the text adventure game
-Handles input processing and scene transitions
+Engine that interprets scenario.json ( cartridge format)
 """
 
 import sys
+import json
 import time
 
 from renderer import draw_frame, CANVAS_WIDTH, CANVAS_HEIGHT
-from assets import get_art, get_menu_options
-from logic import GameState, process_action, navigate_menu, get_scene_description_lines
 
 
 class Game:
-    """Main game class implementing the state machine"""
+    """Main game class - engine that interprets scenario data"""
     
     def __init__(self):
-        self.state = GameState()
+        self.scenario = self.load_scenario()
+        self.current_state = "main_menu"
         self.running = True
+    
+    def load_scenario(self) -> dict:
+        """Load scenario data from JSON file"""
+        try:
+            with open('scenario.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("Ошибка: файл scenario.json не найден!")
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f"Ошибка parsing JSON: {e}")
+            sys.exit(1)
     
     def get_input(self) -> str:
         """
-        Get player input (number 1-5 or arrow keys).
+        Get player input (number for action selection).
         Uses non-blocking input where possible.
         """
         try:
@@ -73,66 +85,136 @@ class Game:
             except EOFError:
                 return ''
     
-    def handle_input(self, user_input: str) -> None:
+    def handle_input(self, user_input: str, actions: list) -> None:
         """
         Process user input and update game state.
         
         Args:
             user_input: Raw input string from player
+            actions: List of available actions from current location
         """
         if not user_input:
             return
         
         # Handle navigation arrows
         if user_input == 'UP':
-            navigate_menu('up', self.state)
+            if self.selected_option > 0:
+                self.selected_option -= 1
             return
         
         if user_input == 'DOWN':
-            navigate_menu('down', self.state)
+            if self.selected_option < len(actions) - 1:
+                self.selected_option += 1
             return
         
-        # Handle number keys (1-5)
+        # Handle number keys
         if user_input in '12345':
             option_index = int(user_input) - 1
             
             # Validate option index
-            if 0 <= option_index < 5:
-                self.state.selected_option = option_index
-                self.running = process_action(option_index, self.state)
+            if 0 <= option_index < len(actions):
+                self.selected_option = option_index
+                self.execute_action(actions[option_index])
             return
         
         # Handle Enter key (activate selected option)
         if user_input == '\r' or user_input == '\n':
-            self.running = process_action(self.state.selected_option, self.state)
+            if 0 <= self.selected_option < len(actions):
+                self.execute_action(actions[self.selected_option])
             return
         
         # Handle 'q' for quit
         if user_input.lower() == 'q':
             self.running = False
     
-    def render_current_scene(self) -> None:
-        """Render the current game scene"""
-        # Get assets for current scene
-        art = get_art(self.state.current_scene)
-        description = get_scene_description_lines(self.state.current_scene, self.state)
-        menu_options = get_menu_options(self.state.current_scene)
+    def execute_action(self, action: dict) -> None:
+        """Execute an action and transition to new state"""
+        target = action.get("target", "")
         
-        # Split art into lines
-        art_lines = art.strip().split('\n') if art else []
+        if target == "exit":
+            self.running = False
+        elif target in self.scenario:
+            self.current_state = target
+        # If target is invalid, stay in current state
+    
+    def render_current_scene(self) -> None:
+        """Render the current game scene based on scenario data"""
+        # Get current location data from scenario
+        location = self.scenario.get(self.current_state, {})
+        
+        art_id = location.get("art_id", "default")
+        text = location.get("text", "Unknown location.")
+        actions = location.get("actions", [])
+        
+        # Extract button texts from actions
+        menu_options = [action.get("text", f"Option {i+1}") for i, action in enumerate(actions)]
+        
+        # Pad menu_options to always have 5 items (renderer expects exactly 5)
+        while len(menu_options) < 5:
+            menu_options.append("")
+        
+        # Get art placeholder based on art_id
+        art_lines = self.get_art_for_id(art_id)
+        
+        # Split text into lines for description
+        description_lines = text.split('\n')
         
         # Render the frame
-        draw_frame(art_lines, description, menu_options, self.state.selected_option)
+        draw_frame(art_lines, description_lines, menu_options, self.selected_option)
+    
+    def get_art_for_id(self, art_id: str) -> list:
+        """Get ASCII art lines based on art_id (placeholder implementation)"""
+        # Simple placeholder arts for demonstration
+        arts = {
+            "main_menu_art": [
+                "  ____  _          _ _             ",
+                " |  _ \\(_) ___ ___| (_) ___ _ __   ",
+                " | | | | |/ __/ _ \\ | |/ _ \\ '__|  ",
+                " | |_| | | (_|  __/ | |  __/ |     ",
+                " |____/|_|\\___\\___|_|_|\\___|_|     ",
+                "",
+                "       === QUESTTEST ===           ",
+            ],
+            "start_room": [
+                "  +---------------------+          ",
+                "  |                     |          ",
+                "  |      [ROOM]         |          ",
+                "  |         |           |          ",
+                "  |      [MAP]          |          ",
+                "  |                     |          ",
+                "  +----------+----------+          ",
+            ],
+            "forest_scene": [
+                "    /\\    /\\                         ",
+                "   //\\\\  //\\\\                        ",
+                "  ///\\\\///\\\\\\                       ",
+                "    ||  ||                          ",
+                "   _||__||_                         ",
+                "  |        |                        ",
+                "  | TUNNEL |                        ",
+            ],
+            "default": [
+                "  ???                              ",
+                "  Unknown location art             ",
+                "  ???                              ",
+            ]
+        }
+        return arts.get(art_id, arts["default"])
     
     def run(self):
         """Main game loop"""
+        self.selected_option = 0  # Initialize selected option
+        
         while self.running:
             # Render current scene
             self.render_current_scene()
             
             # Get and process input
+            location = self.scenario.get(self.current_state, {})
+            actions = location.get("actions", [])
+            
             user_input = self.get_input()
-            self.handle_input(user_input)
+            self.handle_input(user_input, actions)
             
             # Small delay to prevent CPU spinning
             time.sleep(0.05)
@@ -152,7 +234,7 @@ class Game:
 
 def main():
     """Entry point for the game"""
-    print("Загрузка игры...")
+    print("Загрузка движка QUESTTEST v1.0...")
     
     try:
         game = Game()
