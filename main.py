@@ -18,6 +18,7 @@ class Game:
         self.scenario = self.load_scenario()
         self.current_state = "main_menu"
         self.running = True
+        self.state = {"flags": set()}  # Player state with flags/inventory
     
     def load_scenario(self) -> dict:
         """Load scenario data from JSON file"""
@@ -129,6 +130,10 @@ class Game:
     
     def execute_action(self, action: dict) -> None:
         """Execute an action and transition to new state"""
+        # Set flag if specified in action
+        if "set_flag" in action:
+            self.state["flags"].add(action["set_flag"])
+        
         target = action.get("target", "")
         
         if target == "exit":
@@ -144,9 +149,24 @@ class Game:
         
         art_id = location.get("art_id", "default")
         text = location.get("text", "Unknown location.")
-        actions = location.get("actions", [])
+        all_actions = location.get("actions", [])
         
-        # Extract button texts from actions
+        # Filter actions based on flags
+        actions = []
+        for action in all_actions:
+            # Check require_flag: action visible only if player HAS this flag
+            if "require_flag" in action:
+                if action["require_flag"] not in self.state["flags"]:
+                    continue  # Skip this action
+            
+            # Check require_no_flag: action visible only if player does NOT have this flag
+            if "require_no_flag" in action:
+                if action["require_no_flag"] in self.state["flags"]:
+                    continue  # Skip this action
+            
+            actions.append(action)
+        
+        # Extract button texts from filtered actions
         menu_options = [action.get("text", f"Option {i+1}") for i, action in enumerate(actions)]
         
         # Pad menu_options to always have 5 items (renderer expects exactly 5)
