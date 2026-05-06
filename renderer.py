@@ -10,8 +10,45 @@ import textwrap
 from wcwidth import wcswidth
 
 # Constants for canvas dimensions - HARD LIMITS
+WIDTH = 100
+INNER_WIDTH = 98  # Полезная ширина внутри рамок
 CANVAS_WIDTH = 100
 CANVAS_HEIGHT = 40
+
+
+def fix_line(text: str) -> str:
+    """
+    Фиксирует строку текста внутри рамок шириной 98 символов.
+    
+    Принимай строку текста (одну строку из меню или арта).
+    Считай её визуальную ширину через wcswidth(text). Если wcswidth вернул -1, считай ширину как len(text).
+    Вычисли, сколько пробелов не хватает: padding = 98 - visual_width.
+    Если padding < 0, обрежь текст, пока visual_width не станет <= 98.
+    ГЛАВНОЕ: Возвращай строку в формате: f"|{text}{' ' * padding}|".
+    
+    Результат: символ | в конце строки всегда печатается на 100-й позиции.
+    """
+    # Считаем визуальную ширину
+    visual_width = wcswidth(text)
+    if visual_width == -1:
+        visual_width = len(text)
+    
+    # Вычисляем padding
+    padding = INNER_WIDTH - visual_width
+    
+    # Если padding < 0, обрезаем текст
+    if padding < 0:
+        # Обрезаем посимвольно, пока visual_width не станет <= 98
+        while True:
+            text = text[:-1]
+            visual_width = wcswidth(text)
+            if visual_width == -1:
+                visual_width = len(text)
+            if visual_width <= INNER_WIDTH:
+                break
+        padding = INNER_WIDTH - visual_width
+    
+    return "|" + text + (' ' * padding) + "|"
 
 # Zone heights - EXACT allocation
 TOP_BORDER_LINES = 3       # Top border + separator
@@ -149,62 +186,57 @@ def render_frame(art_lines: list, description_lines: list, menu_options: list,
         each line exactly CANVAS_WIDTH characters.
     """
     frame = []
-    inner_width = CANVAS_WIDTH - 2  # 98 characters for content
     
     # === LINE 0: TOP BORDER ===
-    frame.append("┌" + "─" * inner_width + "┐")
+    frame.append("+" + "-" * INNER_WIDTH + "+")
     
     # === LINES 1-2: TOP PADDING/TITLE AREA ===
-    frame.append("│" + " " * inner_width + "│")
-    frame.append("│" + " " * inner_width + "│")
+    frame.append(fix_line(""))
+    frame.append(fix_line(""))
     
     # === LINES 3-14: IMAGE ZONE (12 inner lines) ===
     # Process art to fit exactly 12 lines
     art_to_display = []
     for line in art_lines:
         clean_line = line.replace('\n', '').replace('\r', '')
-        # Truncate to inner width considering emoji width
-        truncated = truncate_to_width(clean_line, inner_width)
-        art_to_display.append(truncated)
+        art_to_display.append(clean_line)
     
     # Take only what fits or pad with empty lines
     if len(art_to_display) > IMAGE_ZONE_INNER_HEIGHT:
         art_to_display = art_to_display[:IMAGE_ZONE_INNER_HEIGHT]
     
-    # Add art lines, padded to full width
+    # Add art lines through fix_line
     for art_line in art_to_display:
-        padded = pad_to_width(art_line, inner_width)
-        frame.append("│" + padded + "│")
+        frame.append(fix_line(art_line))
     
     # Fill remaining image zone lines
     while len(frame) < 3 + IMAGE_ZONE_INNER_HEIGHT:
-        frame.append("│" + " " * inner_width + "│")
+        frame.append(fix_line(""))
     
     # === LINE 15: SEPARATOR AFTER IMAGE ===
-    frame.append("├" + "─" * inner_width + "┤")
+    frame.append("+" + "-" * INNER_WIDTH + "+")
     
     # === LINES 16-27: TEXT ZONE (12 inner lines) ===
     # Process description text with wrapping
     text_to_display = []
     for desc_line in description_lines:
-        wrapped = wrap_text(desc_line, inner_width)
+        wrapped = wrap_text(desc_line, INNER_WIDTH)
         text_to_display.extend(wrapped)
     
     # Take only what fits
     if len(text_to_display) > TEXT_ZONE_INNER_HEIGHT:
         text_to_display = text_to_display[:TEXT_ZONE_INNER_HEIGHT]
     
-    # Add text lines, padded to full width
+    # Add text lines through fix_line
     for text_line in text_to_display:
-        padded = pad_to_width(text_line, inner_width)
-        frame.append("│" + padded + "│")
+        frame.append(fix_line(text_line))
     
     # Fill remaining text zone lines
     while len(frame) < 16 + TEXT_ZONE_INNER_HEIGHT:
-        frame.append("│" + " " * inner_width + "│")
+        frame.append(fix_line(""))
     
     # === LINE 28: SEPARATOR BEFORE INPUT ===
-    frame.append("├" + "─" * inner_width + "┤")
+    frame.append("+" + "-" * INNER_WIDTH + "+")
     
     # === LINES 29-38: INPUT ZONE (5 buttons × 2 lines each = 10 lines) ===
     # Each button gets 2 lines for a "chunky" appearance
@@ -223,47 +255,36 @@ def render_frame(art_lines: list, description_lines: list, menu_options: list,
         # Calculate available width for option text
         prefix_width = get_string_display_width(prefix)
         suffix_width = get_string_display_width(suffix)
-        text_available = inner_width - prefix_width - suffix_width
+        text_available = INNER_WIDTH - prefix_width - suffix_width
         
         # Truncate option text to fit
         option_text = truncate_to_width(option, text_available)
         
         # Build the button line
         button_line = prefix + option_text + suffix
-        button_padded = pad_to_width(button_line, inner_width)
         
-        # First line of button: the actual button content
-        frame.append("│" + button_padded + "│")
+        # First line of button: the actual button content through fix_line
+        frame.append(fix_line(button_line))
         
         # Second line of button: visual separator (dashed line between buttons)
         if idx < 4:
             # Dashed separator between buttons
-            frame.append("│" + "─" * inner_width + "│")
+            frame.append("+" + "-" * INNER_WIDTH + "+")
         else:
             # Last button - just empty space before bottom border
-            frame.append("│" + " " * inner_width + "│")
+            frame.append(fix_line(""))
     
     # === LINE 39: BOTTOM BORDER ===
-    frame.append("└" + "─" * inner_width + "┘")
+    frame.append("+" + "-" * INNER_WIDTH + "+")
     
     # Ensure exactly CANVAS_HEIGHT lines
     while len(frame) < CANVAS_HEIGHT:
-        frame.append("│" + " " * inner_width + "│")
+        frame.append(fix_line(""))
     
     # Truncate to exactly CANVAS_HEIGHT lines
     frame = frame[:CANVAS_HEIGHT]
     
-    # Final verification: ensure every line is exactly CANVAS_WIDTH
-    verified_frame = []
-    for line in frame:
-        # Truncate if too long, pad if too short
-        if len(line) > CANVAS_WIDTH:
-            line = line[:CANVAS_WIDTH]
-        else:
-            line = pad_to_width(line, CANVAS_WIDTH)
-        verified_frame.append(line)
-    
-    return '\n'.join(verified_frame)
+    return '\n'.join(frame)
 
 
 def draw_frame(art_lines: list, description_lines: list, menu_options: list,
@@ -282,17 +303,16 @@ def draw_frame(art_lines: list, description_lines: list, menu_options: list,
 def render_title_screen() -> str:
     """Render a special title screen frame with exact 100x40 dimensions"""
     frame = []
-    inner_width = CANVAS_WIDTH - 2
     
     # Top border with double-line style
-    frame.append("┌" + "═" * inner_width + "┐")
+    frame.append("+" + "=" * INNER_WIDTH + "+")
     
     # Fill with empty space
     for _ in range(CANVAS_HEIGHT - 2):
-        frame.append("│" + " " * inner_width + "│")
+        frame.append(fix_line(""))
     
     # Bottom border
-    frame.append("└" + "═" * inner_width + "┘")
+    frame.append("+" + "=" * INNER_WIDTH + "+")
     
     return '\n'.join(frame)
 
@@ -309,30 +329,28 @@ def get_terminal_size():
 def draw_centered_message(message: str):
     """Draw a centered message on screen (for loading, errors, etc.)"""
     clear_screen()
-    inner_width = CANVAS_WIDTH - 2
     
     frame = []
-    frame.append("┌" + "─" * inner_width + "┐")
+    frame.append("+" + "-" * INNER_WIDTH + "+")
     
     # Calculate vertical center
     empty_lines_top = (CANVAS_HEIGHT - 3) // 2
     
     for _ in range(empty_lines_top):
-        frame.append("│" + " " * inner_width + "│")
+        frame.append(fix_line(""))
     
     # Center the message horizontally (accounting for emoji width)
     msg_display_width = get_string_display_width(message)
-    msg_truncated = truncate_to_width(message, inner_width - 4)
+    msg_truncated = truncate_to_width(message, INNER_WIDTH - 4)
     msg_display_width = get_string_display_width(msg_truncated)
-    padding = (inner_width - msg_display_width - 4) // 2
+    padding = (INNER_WIDTH - msg_display_width - 4) // 2
     centered_msg = "  " + (" " * padding) + msg_truncated + (" " * padding) + "  "
-    centered_msg = pad_to_width(centered_msg, inner_width)
-    frame.append("│" + centered_msg + "│")
+    frame.append(fix_line(centered_msg))
     
     empty_lines_bottom = CANVAS_HEIGHT - 3 - empty_lines_top - 1
     for _ in range(empty_lines_bottom):
-        frame.append("│" + " " * inner_width + "│")
+        frame.append(fix_line(""))
     
-    frame.append("└" + "─" * inner_width + "┘")
+    frame.append("+" + "-" * INNER_WIDTH + "+")
     
     print('\n'.join(frame))
