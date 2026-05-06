@@ -32,6 +32,18 @@ class Game:
             print(f"Ошибка parsing JSON: {e}")
             sys.exit(1)
     
+    def load_scenario(self) -> dict:
+        """Load scenario data from JSON file"""
+        try:
+            with open('scenario.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except FileNotFoundError:
+            print("Ошибка: файл scenario.json не найден!")
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            print(f"Ошибка parsing JSON: {e}")
+            sys.exit(1)
+    
     def get_input(self) -> str:
         """
         Get player input (number for action selection).
