@@ -1,7 +1,7 @@
 {
   "main_menu": {
     "art_id": "main_menu_art",
-    "text": "ДОБРО ПОЖАЛОВАТЬ В QUESTTEST!\nВерсия движка 1.0. Готовы начать?",
+    "text": "ДОБРО ПОЖАЛОВАТЬ В QUESTTEST!\nВерсия движка 1.1. Готовы начать?",
     "actions": [
       {"text": "Начать новую игру", "target": "room_start"},
       {"text": "Выйти", "target": "exit"}
@@ -11,7 +11,9 @@
     "art_id": "start_room",
     "text": "Ты стоишь в центре пустой комнаты. На стене висит старая карта. Единственный выход ведет в темный коридор.",
     "actions": [
-      {"text": "Идти в коридор", "target": "corridor"},
+      {"text": "Обыскать тумбочку", "target": "room_start", "set_flag": "has_key", "require_no_flag": "has_key"},
+      {"text": "Идти в коридор", "target": "corridor", "require_flag": "has_key"},
+      {"text": "Дверь заперта (нужен ключ)", "target": "room_start", "require_no_flag": "has_key"},
       {"text": "Вернуться в меню", "target": "main_menu"}
     ]
   },
