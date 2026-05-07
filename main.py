@@ -86,6 +86,31 @@ class Game:
             except EOFError:
                 return ''
     
+    def get_available_actions(self) -> list:
+        """
+        Get available actions for current state, filtered by flags.
+        Centralized filtering logic to avoid duplication.
+        
+        Returns:
+            List of action dictionaries that are available based on current flags
+        """
+        location = self.scenario.get(self.current_state, {})
+        all_actions = location.get("actions", [])
+        available = []
+        for action in all_actions:
+            # Check require_flag: action visible only if player HAS this flag
+            if "require_flag" in action:
+                if action["require_flag"] not in self.state["flags"]:
+                    continue  # Skip this action
+            
+            # Check require_no_flag: action visible only if player does NOT have this flag
+            if "require_no_flag" in action:
+                if action["require_no_flag"] in self.state["flags"]:
+                    continue  # Skip this action
+            
+            available.append(action)
+        return available
+    
     def handle_input(self, user_input: str, actions: list) -> None:
         """
         Process user input and update game state.
@@ -104,7 +129,7 @@ class Game:
             return
         
         if user_input == 'DOWN':
-            max_option = len(actions) - 1 if actions else 0
+            max_option = len(actions) - 1 if len(actions) > 0 else 0
             if self.selected_option < max_option:
                 self.selected_option += 1
             return
@@ -152,22 +177,9 @@ class Game:
         
         art_id = location.get("art_id", "default")
         text = location.get("text", "Unknown location.")
-        all_actions = location.get("actions", [])
         
-        # Filter actions based on flags
-        actions = []
-        for action in all_actions:
-            # Check require_flag: action visible only if player HAS this flag
-            if "require_flag" in action:
-                if action["require_flag"] not in self.state["flags"]:
-                    continue  # Skip this action
-            
-            # Check require_no_flag: action visible only if player does NOT have this flag
-            if "require_no_flag" in action:
-                if action["require_no_flag"] in self.state["flags"]:
-                    continue  # Skip this action
-            
-            actions.append(action)
+        # Use centralized filtering method
+        actions = self.get_available_actions()
         
         # Extract button texts from filtered actions
         menu_options = [action.get("text", f"Option {i+1}") for i, action in enumerate(actions)]
@@ -176,21 +188,14 @@ class Game:
         while len(menu_options) < 5:
             menu_options.append("")
         
-        # Get art placeholder based on art_id
+        # Get art placeholder based on art_id - art_id now directly maps to assets.py keys
         art_lines = self.get_art_for_id(art_id)
         
         # Get description from assets.py if available, otherwise use scenario text
         from assets import get_description
         
-        # Use self.current_state to find description - map scenario state names to asset names
-        desc_mapping = {
-            "main_menu": "main_menu",
-            "room_start": "room",
-            "corridor": "forest",
-        }
-        desc_name = desc_mapping.get(self.current_state, self.current_state)
-        
-        description_from_assets = get_description(desc_name)
+        # Use current_state directly as the key - no mapping needed
+        description_from_assets = get_description(self.current_state)
         # Use assets description if available and not default, otherwise split scenario text
         if description_from_assets and description_from_assets != get_description("default"):
             description_lines = description_from_assets
@@ -204,18 +209,9 @@ class Game:
         """Get ASCII art lines based on art_id from assets.py"""
         from assets import get_art
         
-        # Map scenario art_ids to asset names using current_state for consistency
-        art_mapping = {
-            "main_menu_art": "main_menu",
-            "start_room": "room",
-            "forest_scene": "forest",
-        }
-        
-        # Try to map the art_id, or use it directly
-        asset_name = art_mapping.get(art_id, art_id)
-        
+        # art_id now directly maps to asset names - no translation dictionary needed
         # Get art string from assets
-        art_string = get_art(asset_name)
+        art_string = get_art(art_id)
         
         # Split into lines and clean
         lines = [line.rstrip() for line in art_string.split('\n')]
@@ -238,20 +234,8 @@ class Game:
             # Render current scene (this filters actions based on flags)
             self.render_current_scene()
             
-            # Get filtered actions for input handling - must match what was rendered
-            location = self.scenario.get(self.current_state, {})
-            all_actions = location.get("actions", [])
-            
-            # Apply same filtering as in render_current_scene to ensure indices match
-            actions = []
-            for action in all_actions:
-                if "require_flag" in action:
-                    if action["require_flag"] not in self.state["flags"]:
-                        continue
-                if "require_no_flag" in action:
-                    if action["require_no_flag"] in self.state["flags"]:
-                        continue
-                actions.append(action)
+            # Use centralized filtering method - ensures consistency with render
+            actions = self.get_available_actions()
             
             user_input = self.get_input()
             self.handle_input(user_input, actions)
