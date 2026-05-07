@@ -141,6 +141,8 @@ class Game:
             self.running = False
         elif target in self.scenario:
             self.current_state = target
+            # Reset selected option when changing scenes to prevent index out of bounds
+            self.selected_option = 0
         # If target is invalid, stay in current state
     
     def render_current_scene(self) -> None:
@@ -180,13 +182,13 @@ class Game:
         # Get description from assets.py if available, otherwise use scenario text
         from assets import get_description
         
-        # Map scenario art_ids to asset names for descriptions too
+        # Use self.current_state to find description - map scenario state names to asset names
         desc_mapping = {
-            "main_menu_art": "main_menu",
-            "start_room": "room",
-            "forest_scene": "forest",
+            "main_menu": "main_menu",
+            "room_start": "room",
+            "corridor": "forest",
         }
-        desc_name = desc_mapping.get(art_id, art_id)
+        desc_name = desc_mapping.get(self.current_state, self.current_state)
         
         description_from_assets = get_description(desc_name)
         # Use assets description if available and not default, otherwise split scenario text
@@ -202,7 +204,7 @@ class Game:
         """Get ASCII art lines based on art_id from assets.py"""
         from assets import get_art
         
-        # Map scenario art_ids to asset names
+        # Map scenario art_ids to asset names using current_state for consistency
         art_mapping = {
             "main_menu_art": "main_menu",
             "start_room": "room",
@@ -233,12 +235,23 @@ class Game:
         self.selected_option = 0  # Initialize selected option
         
         while self.running:
-            # Render current scene
+            # Render current scene (this filters actions based on flags)
             self.render_current_scene()
             
-            # Get and process input
+            # Get filtered actions for input handling - must match what was rendered
             location = self.scenario.get(self.current_state, {})
-            actions = location.get("actions", [])
+            all_actions = location.get("actions", [])
+            
+            # Apply same filtering as in render_current_scene to ensure indices match
+            actions = []
+            for action in all_actions:
+                if "require_flag" in action:
+                    if action["require_flag"] not in self.state["flags"]:
+                        continue
+                if "require_no_flag" in action:
+                    if action["require_no_flag"] in self.state["flags"]:
+                        continue
+                actions.append(action)
             
             user_input = self.get_input()
             self.handle_input(user_input, actions)
