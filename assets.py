@@ -165,4 +165,4 @@ def get_description(scene_name: str) -> list:
 
 def get_menu_options(scene_name: str) -> list:
     """Get menu options for a scene"""
-    return MENU_OPTIONS.get(scene_name, MENU_OPTIONS["room"])
+    return MENU_OPTIONS.get(scene_name, [])
